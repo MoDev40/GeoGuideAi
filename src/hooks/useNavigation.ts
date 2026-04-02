@@ -65,7 +65,7 @@ export function useNavigation(location: Location | null, activeRoute: RouteInfo 
       const randomMsg = trafficMessages[Math.floor(Math.random() * trafficMessages.length)];
       
       setAlerts(prev => [...prev, {
-        id: `traffic-alert-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        id: `traffic-alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${prev.length}`,
         type: 'delay',
         subType: 'traffic',
         message: randomMsg,
@@ -88,7 +88,7 @@ export function useNavigation(location: Location | null, activeRoute: RouteInfo 
       
       // Add a visual alert
       setAlerts(prev => [...prev, {
-        id: `nav-alert-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        id: `nav-alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${prev.length}`,
         type: 'turn',
         message: currentStep.instruction,
         distance: currentStep.distance

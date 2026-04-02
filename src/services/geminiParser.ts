@@ -8,7 +8,7 @@ export function parsePOIs(text: string): POI[] {
       const parts = line.replace('PLACE:', '').split('|').map(p => p.trim());
       if (parts.length >= 2) {
         pois.push({
-          id: `poi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: `poi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
           name: parts[0],
           address: parts[1],
           rating: parts[2] || undefined,

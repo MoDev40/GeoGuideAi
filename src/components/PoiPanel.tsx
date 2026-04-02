@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, X, MapPin, Star, Share2 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -14,6 +14,57 @@ interface PoiPanelProps {
   onClearResults: () => void;
 }
 
+const PoiItem = React.memo(({ 
+  poi, 
+  mode, 
+  onPoiClick, 
+  onShare 
+}: { 
+  poi: POI, 
+  mode: AppMode, 
+  onPoiClick: (poi: POI) => void, 
+  onShare: (e: React.MouseEvent, poi: POI) => void 
+}) => (
+  <div className="relative group/item mb-1">
+    <button
+      onClick={() => onPoiClick(poi)}
+      className={cn(
+        "w-full text-left p-3 rounded-xl transition-all hover:bg-current/5 group",
+        mode === 'discovery' ? "hover:bg-orange-500/10" : "hover:bg-gray-100"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className={cn(
+          "p-2 rounded-lg shrink-0",
+          mode === 'discovery' ? "bg-orange-500/20 text-orange-400" : "bg-gray-100 text-gray-600"
+        )}>
+          <MapPin size={14} />
+        </div>
+        <div className="min-w-0 flex-1 pr-8">
+          <p className="text-sm font-bold truncate">{poi.name}</p>
+          <p className="text-[10px] opacity-50 truncate">{poi.address}</p>
+          {poi.rating && (
+            <div className="flex items-center gap-1 mt-1">
+              <Star size={10} className="text-yellow-500 fill-yellow-500" />
+              <span className="text-[10px] font-bold">{poi.rating}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </button>
+    <button
+      onClick={(e) => onShare(e, poi)}
+      className={cn(
+        "absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg opacity-0 group-hover/item:opacity-100 transition-all",
+        mode === 'discovery' ? "hover:bg-white/10 text-orange-400" : "hover:bg-gray-200 text-gray-400"
+      )}
+      title="Share POI"
+    >
+      <Share2 size={14} />
+    </button>
+  </div>
+));
+
 export const PoiPanel = React.memo(({ 
   isOpen, 
   poiResults, 
@@ -22,7 +73,7 @@ export const PoiPanel = React.memo(({
   onPoiClick, 
   onClearResults 
 }: PoiPanelProps) => {
-  const handleShare = (e: React.MouseEvent, poi: POI) => {
+  const handleShare = useCallback((e: React.MouseEvent, poi: POI) => {
     e.stopPropagation();
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${poi.name} ${poi.address}`)}`;
     shareLocation(
@@ -30,7 +81,7 @@ export const PoiPanel = React.memo(({
       `Check out this place: ${poi.name} at ${poi.address}`,
       url
     );
-  };
+  }, []);
 
   return (
     <AnimatePresence>
@@ -58,44 +109,13 @@ export const PoiPanel = React.memo(({
           </div>
           <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
             {poiResults.map((poi) => (
-              <div key={poi.id} className="relative group/item mb-1">
-                <button
-                  onClick={() => onPoiClick(poi)}
-                  className={cn(
-                    "w-full text-left p-3 rounded-xl transition-all hover:bg-current/5 group",
-                    mode === 'discovery' ? "hover:bg-orange-500/10" : "hover:bg-gray-100"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={cn(
-                      "p-2 rounded-lg shrink-0",
-                      mode === 'discovery' ? "bg-orange-500/20 text-orange-400" : "bg-gray-100 text-gray-600"
-                    )}>
-                      <MapPin size={14} />
-                    </div>
-                    <div className="min-w-0 flex-1 pr-8">
-                      <p className="text-sm font-bold truncate">{poi.name}</p>
-                      <p className="text-[10px] opacity-50 truncate">{poi.address}</p>
-                      {poi.rating && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Star size={10} className="text-yellow-500 fill-yellow-500" />
-                          <span className="text-[10px] font-bold">{poi.rating}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </button>
-                <button
-                  onClick={(e) => handleShare(e, poi)}
-                  className={cn(
-                    "absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg opacity-0 group-hover/item:opacity-100 transition-all",
-                    mode === 'discovery' ? "hover:bg-white/10 text-orange-400" : "hover:bg-gray-200 text-gray-400"
-                  )}
-                  title="Share POI"
-                >
-                  <Share2 size={14} />
-                </button>
-              </div>
+              <PoiItem 
+                key={poi.id} 
+                poi={poi} 
+                mode={mode} 
+                onPoiClick={onPoiClick} 
+                onShare={handleShare} 
+              />
             ))}
           </div>
           <div className="p-3 bg-current/5 text-center">

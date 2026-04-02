@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Sparkles, Map as MapIcon, RotateCcw } from 'lucide-react';
+import { X, Sparkles, Map as MapIcon, RotateCcw, MessageSquare, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
 import { AppMode, Message } from '../types';
@@ -14,6 +14,94 @@ interface ChatSheetProps {
   onRetry: (text: string) => void;
   chatEndRef: React.RefObject<HTMLDivElement | null>;
 }
+
+const MessageItem = React.memo(({ msg, mode, onRetry }: { msg: Message, mode: AppMode, onRetry: (text: string) => void }) => (
+  <div className={cn(
+    "flex flex-col gap-2",
+    msg.role === 'user' ? "items-end" : "items-start"
+  )}>
+    <div className={cn(
+      "max-w-[85%] p-5 rounded-2xl text-sm leading-relaxed relative",
+      msg.role === 'user' 
+        ? (mode === 'discovery' ? "bg-orange-600 text-white rounded-tr-none" : "bg-black text-white rounded-tr-none")
+        : (mode === 'discovery' ? "bg-white/5 text-gray-200 rounded-tl-none border border-white/10" : "bg-gray-100 text-gray-800 rounded-tl-none"),
+      msg.isError && "border-red-500/50 bg-red-500/5 text-red-500"
+    )}>
+      {msg.role === 'model' ? (
+        <div className={cn(
+          "prose prose-sm max-w-none",
+          mode === 'discovery' ? "prose-invert prose-orange" : "",
+          msg.isError && "text-red-500"
+        )}>
+          <ReactMarkdown>{msg.text}</ReactMarkdown>
+        </div>
+      ) : (
+        msg.text
+      )}
+      
+      {msg.isError && (
+        <button 
+          onClick={() => onRetry(msg.text)}
+          className="mt-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest hover:underline"
+        >
+          <RotateCcw size={12} />
+          Retry
+        </button>
+      )}
+    </div>
+    
+    {/* Grounding Links */}
+    {msg.groundingChunks && msg.groundingChunks.length > 0 && (
+      <div className="flex flex-wrap gap-2 mt-2">
+        {msg.groundingChunks.map((chunk, cIdx) => (
+          <GroundingLink key={`${msg.id}-grounding-${cIdx}`} chunk={chunk} mode={mode} />
+        ))}
+      </div>
+    )}
+  </div>
+));
+
+const GroundingLink = React.memo(({ chunk, mode }: { chunk: any, mode: AppMode }) => {
+  if (chunk.maps) {
+    return (
+      <a 
+        href={chunk.maps.uri}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
+          mode === 'discovery' 
+            ? "bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20" 
+            : "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100"
+        )}
+      >
+        <MapIcon className="w-3 h-3" />
+        {chunk.maps.title || "View on Maps"}
+      </a>
+    );
+  }
+  
+  if (chunk.web) {
+    return (
+      <a 
+        href={chunk.web.uri}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
+          mode === 'discovery' 
+            ? "bg-white/5 text-white/60 border-white/10 hover:bg-white/10" 
+            : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+        )}
+      >
+        <ExternalLink className="w-3 h-3" />
+        {chunk.web.title || "Source"}
+      </a>
+    );
+  }
+
+  return null;
+});
 
 export const ChatSheet = React.memo(({ 
   isOpen, 
@@ -79,68 +167,7 @@ export const ChatSheet = React.memo(({
                 </div>
               )}
               {messages.map((msg) => (
-                <div key={msg.id} className={cn(
-                  "flex flex-col gap-2",
-                  msg.role === 'user' ? "items-end" : "items-start"
-                )}>
-                  <div className={cn(
-                    "max-w-[85%] p-5 rounded-2xl text-sm leading-relaxed relative",
-                    msg.role === 'user' 
-                      ? (mode === 'discovery' ? "bg-orange-600 text-white rounded-tr-none" : "bg-black text-white rounded-tr-none")
-                      : (mode === 'discovery' ? "bg-white/5 text-gray-200 rounded-tl-none border border-white/10" : "bg-gray-100 text-gray-800 rounded-tl-none"),
-                    msg.isError && "border-red-500/50 bg-red-500/5 text-red-500"
-                  )}>
-                    {msg.role === 'model' ? (
-                      <div className={cn(
-                        "prose prose-sm max-w-none",
-                        mode === 'discovery' ? "prose-invert prose-orange" : "",
-                        msg.isError && "text-red-500"
-                      )}>
-                        <ReactMarkdown>{msg.text}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      msg.text
-                    )}
-                    
-                    {msg.isError && (
-                      <button 
-                        onClick={() => onRetry(msg.text)}
-                        className="mt-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest hover:underline"
-                      >
-                        <RotateCcw size={12} />
-                        Retry
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Grounding Links */}
-                  {msg.groundingChunks && msg.groundingChunks.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {msg.groundingChunks.map((chunk, cIdx) => {
-                        if (chunk.maps) {
-                          return (
-                            <a 
-                              key={`${msg.id}-grounding-${cIdx}`}
-                              href={chunk.maps.uri}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
-                                mode === 'discovery' 
-                                  ? "bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20" 
-                                  : "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100"
-                              )}
-                            >
-                              <MapIcon className="w-3 h-3" />
-                              {chunk.maps.title || "View on Maps"}
-                            </a>
-                          );
-                        }
-                        return null;
-                      })}
-                    </div>
-                  )}
-                </div>
+                <MessageItem key={msg.id} msg={msg} mode={mode} onRetry={onRetry} />
               ))}
 
               {isLoading && (

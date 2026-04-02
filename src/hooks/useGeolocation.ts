@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Location } from '../types';
 
 async function fetchLocationName(lat: number, lon: number) {
@@ -15,6 +15,7 @@ async function fetchLocationName(lat: number, lon: number) {
 export function useGeolocation() {
   const [location, setLocation] = useState<Location | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -22,15 +23,28 @@ export function useGeolocation() {
       return;
     }
 
+    const FETCH_THROTTLE = 60000; // 1 minute
+
     const watchId = navigator.geolocation.watchPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        const name = await fetchLocationName(latitude, longitude);
-        setLocation({
-          latitude,
-          longitude,
-          name,
-        });
+        
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current > FETCH_THROTTLE) {
+          const name = await fetchLocationName(latitude, longitude);
+          setLocation({
+            latitude,
+            longitude,
+            name,
+          });
+          lastFetchTimeRef.current = now;
+        } else {
+          setLocation(prev => ({
+            latitude,
+            longitude,
+            name: prev?.name || "Current Location"
+          }));
+        }
       },
       (err) => {
         setError(`Location access denied: ${err.message}`);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -14,6 +14,35 @@ interface MapAreaProps {
 }
 
 export const MapArea = React.memo(({ mode, isHistorical, poiResults, activeRoute, onPoiClick, activeLayers }: MapAreaProps) => {
+  const markers = useMemo(() => (
+    poiResults.map((poi) => (
+      <motion.div
+        key={poi.id}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0, opacity: 0 }}
+        className="absolute z-20 cursor-pointer group"
+        style={{ left: `${poi.x}%`, top: `${poi.y}%` }}
+        onClick={() => onPoiClick(poi)}
+      >
+        <div className="relative">
+          <div className={cn(
+            "p-2 rounded-full shadow-lg transition-transform group-hover:scale-110",
+            mode === 'discovery' ? "bg-orange-600 text-white" : "bg-black text-white"
+          )}>
+            <MapPin size={16} />
+          </div>
+          <div className={cn(
+            "absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded-md text-[10px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-sm",
+            mode === 'discovery' ? "bg-orange-900 text-orange-100" : "bg-white text-black"
+          )}>
+            {poi.name}
+          </div>
+        </div>
+      </motion.div>
+    ))
+  ), [poiResults, mode, onPoiClick]);
+
   return (
     <div className={cn("absolute inset-0 transition-all duration-1000", isHistorical && "sepia-[0.6] grayscale-[0.2]")}>
       {/* Mock Map Background */}
@@ -120,32 +149,7 @@ export const MapArea = React.memo(({ mode, isHistorical, poiResults, activeRoute
 
       {/* POI Markers on Mock Map */}
       <AnimatePresence>
-        {poiResults.map((poi) => (
-          <motion.div
-            key={poi.id}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className="absolute z-20 cursor-pointer group"
-            style={{ left: `${poi.x}%`, top: `${poi.y}%` }}
-            onClick={() => onPoiClick(poi)}
-          >
-            <div className="relative">
-              <div className={cn(
-                "p-2 rounded-full shadow-lg transition-transform group-hover:scale-110",
-                mode === 'discovery' ? "bg-orange-600 text-white" : "bg-black text-white"
-              )}>
-                <MapPin size={16} />
-              </div>
-              <div className={cn(
-                "absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded-md text-[10px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-sm",
-                mode === 'discovery' ? "bg-orange-900 text-orange-100" : "bg-white text-black"
-              )}>
-                {poi.name}
-              </div>
-            </div>
-          </motion.div>
-        ))}
+        {markers}
       </AnimatePresence>
     </div>
   );

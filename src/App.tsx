@@ -21,191 +21,81 @@ import { TrafficStatus } from './components/TrafficStatus';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useWeather } from './hooks/useWeather';
 import { useNavigation } from './hooks/useNavigation';
+import { useAppState } from './hooks/useAppState';
+import { useChatState } from './hooks/useChatState';
 
 // --- Services ---
-import { parsePOIs, parseRoute } from './services/geminiParser';
 import { GeminiService } from './services/geminiService';
 
 // --- Types ---
 import { 
-  Message, 
-  RouteInfo, 
   POI, 
   AppMode,
-  RouteAlert,
   MapLayer
 } from './types';
 
 export default function App() {
-  // --- State ---
+  // --- State & Logic Hooks ---
   const { location, error } = useGeolocation();
   const weather = useWeather(location);
   
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [mode, setMode] = useState<AppMode>('explore');
-  const [activeRoute, setActiveRoute] = useState<RouteInfo | null>(null);
-  const [poiResults, setPoiResults] = useState<POI[]>([]);
-  const [selectedPoi, setSelectedPoi] = useState<POI | null>(null);
-  const [isPoiPanelOpen, setIsPoiPanelOpen] = useState(false);
-  const [isHistorical, setIsHistorical] = useState(false);
-  const [activeLayers, setActiveLayers] = useState<MapLayer[]>([]);
-
-  const { currentStepIndex, alerts: navigationAlerts, dismissAlert } = useNavigation(location, activeRoute, activeLayers);
-  
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const {
+    mode,
+    setMode,
+    isHistorical,
+    activeLayers,
+    poiResults,
+    setPoiResults,
+    selectedPoi,
+    setSelectedPoi,
+    isPoiPanelOpen,
+    setIsPoiPanelOpen,
+    activeRoute,
+    setActiveRoute,
+    handleModeToggle,
+    handleHistoricalToggle,
+    handleLayerToggle,
+    handleClearAll
+  } = useAppState();
 
   // --- Gemini Initialization ---
   const geminiService = useMemo(() => new GeminiService(process.env.GEMINI_API_KEY || ''), []);
 
-  // --- Refs for Stable Callbacks ---
-  // We use refs to store state that handleSend needs, so handleSend doesn't have to change on every keystroke.
-  const stateRef = useRef({ input, mode, isHistorical, location, isLoading });
-  useEffect(() => {
-    stateRef.current = { input, mode, isHistorical, location, isLoading };
-  }, [input, mode, isHistorical, location, isLoading]);
+  const onPoiResults = useCallback((pois: POI[]) => {
+    setPoiResults(pois);
+    setIsPoiPanelOpen(true);
+  }, [setPoiResults, setIsPoiPanelOpen]);
 
+  const onRouteFound = useCallback((route: any) => setActiveRoute(route), [setActiveRoute]);
+  const onModeChange = useCallback((newMode: AppMode) => setMode(newMode), [setMode]);
+
+  const {
+    input,
+    setInput,
+    messages,
+    isLoading,
+    isSheetOpen,
+    setIsSheetOpen,
+    chatEndRef,
+    handleSend,
+    handleRetry,
+    handleVoiceCommand
+  } = useChatState(
+    geminiService,
+    location,
+    mode,
+    isHistorical,
+    onPoiResults,
+    onRouteFound,
+    onModeChange
+  );
+
+  const { currentStepIndex, alerts: navigationAlerts, dismissAlert } = useNavigation(location, activeRoute, activeLayers);
+  
   // --- Handlers ---
-  const handleSend = useCallback(async (e?: React.FormEvent, overrideMessage?: string) => {
-    if (e) e.preventDefault();
-    
-    const { input: currentInput, mode: currentMode, isHistorical: currentIsHistorical, location: currentLocation, isLoading: currentIsLoading } = stateRef.current;
-    
-    const messageToSend = overrideMessage || currentInput;
-    if (!messageToSend.trim() || currentIsLoading) return;
-
-    const userMessage = messageToSend.trim();
-    if (!overrideMessage) setInput('');
-    
-    if (currentMode !== 'route') {
-      setMessages(prev => [...prev, { 
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        role: 'user', 
-        text: userMessage 
-      }]);
-      setIsLoading(true);
-      setIsSheetOpen(true);
-    } else {
-      setIsLoading(true);
-    }
-
-    try {
-      const { text, groundingChunks } = await geminiService.generateResponse(
-        userMessage,
-        currentMode,
-        currentIsHistorical,
-        currentLocation
-      );
-
-      if (currentMode === 'explore') {
-        const pois = parsePOIs(text);
-        if (pois.length > 0) {
-          setPoiResults(pois);
-          setIsPoiPanelOpen(true);
-        }
-      }
-
-      if (currentMode === 'route') {
-        const route = parseRoute(text, userMessage, groundingChunks);
-        if (route) {
-          setActiveRoute(route);
-          setMode('explore');
-        }
-      }
-
-      setMessages(prev => [...prev, { 
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        role: 'model', 
-        text, 
-        groundingChunks 
-      }]);
-    } catch (err) {
-      console.error("Gemini API Error:", err);
-      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred.";
-      const isNetworkError = errorMessage.includes("Rpc failed") || errorMessage.includes("xhr error");
-      
-      setMessages(prev => [...prev, { 
-        id: `msg-err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        role: 'model', 
-        text: isNetworkError 
-          ? "I'm having trouble connecting to the map service right now. This is usually a temporary network issue. Please try again in a few seconds."
-          : `Sorry, I encountered an error: ${errorMessage}`,
-        isError: true
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [geminiService]); // Stable dependency
-
   const handlePoiClick = useCallback((poi: POI) => {
     setSelectedPoi(poi);
-  }, []);
-
-  const handleRetry = useCallback((text: string) => {
-    // We need the last user message. Since messages is a state, we can't easily get it without dependency.
-    // But we can use the functional update pattern or just accept messages as a dependency for this specific handler.
-    // However, handleRetry is only called when an error occurs, not on every keystroke.
-    setMessages(prev => {
-      const lastUserMsg = [...prev].reverse().find(m => m.role === 'user');
-      if (lastUserMsg) handleSend(undefined, lastUserMsg.text);
-      return prev;
-    });
-  }, [handleSend]);
-
-  const handleClearAll = useCallback(() => {
-    setPoiResults([]);
-    setIsPoiPanelOpen(false);
-    setActiveRoute(null);
-    setIsHistorical(false);
-  }, []);
-
-  const handleModeToggle = useCallback((newMode: AppMode) => {
-    setMode(newMode);
-    if (newMode === 'route') setActiveRoute(null);
-  }, []);
-
-  const handleHistoricalToggle = useCallback(() => {
-    setIsHistorical(prev => {
-      const next = !prev;
-      if (next) setMode('discovery');
-      return next;
-    });
-  }, []);
-
-  const handleLayerToggle = useCallback((layer: MapLayer) => {
-    setActiveLayers(prev => 
-      prev.includes(layer) ? prev.filter(l => l !== layer) : [...prev, layer]
-    );
-  }, []);
-
-  const handleVoiceCommand = useCallback((command: string, type: 'search' | 'route' | 'mode') => {
-    if (type === 'mode') {
-      setMode(command as AppMode);
-      return;
-    }
-
-    if (type === 'route') {
-      setMode('route');
-      handleSend(undefined, command);
-      return;
-    }
-
-    if (type === 'search') {
-      setMode('explore');
-      handleSend(undefined, command);
-      return;
-    }
-  }, [handleSend]);
-
-  // --- Effects ---
-  // Proactive navigation alerts are now handled by useNavigation hook
-  useEffect(() => {
-    if (isSheetOpen) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isSheetOpen]);
+  }, [setSelectedPoi]);
 
   return (
     <div className={cn(

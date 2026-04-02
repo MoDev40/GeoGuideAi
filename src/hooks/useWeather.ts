@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Location, WeatherData } from '../types';
 import { WEATHER_UPDATE_INTERVAL } from '../constants';
 
@@ -16,8 +16,21 @@ const getWeatherLabel = (code: number) => {
 export function useWeather(location: Location | null) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
 
+  const lastLocationRef = useRef<{ lat: number, lon: number } | null>(null);
+
   useEffect(() => {
     if (!location) return;
+
+    const { latitude, longitude } = location;
+    
+    // Only re-fetch if location changed significantly (approx 1km)
+    if (lastLocationRef.current) {
+      const dLat = Math.abs(latitude - lastLocationRef.current.lat);
+      const dLon = Math.abs(longitude - lastLocationRef.current.lon);
+      if (dLat < 0.01 && dLon < 0.01) return;
+    }
+
+    lastLocationRef.current = { lat: latitude, lon: longitude };
 
     const fetchWeather = async () => {
       try {
