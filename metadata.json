@@ -1,0 +1,8 @@
+{
+  "name": "Remix: GeoGuide AI",
+  "description": "Real-time AI-driven map guider providing intelligent location insights and navigation assistance.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ]
+}
